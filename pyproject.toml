@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rename-academic-pdf"
+version = "1.0.0"
+authors = [{ name = "Feng Mai", email = "maifeng@gmail.com" }]
+description = "Automatically rename academic PDFs using metadata from scholarly databases"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Utilities",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+keywords = [
+    "pdf",
+    "academic",
+    "papers",
+    "metadata",
+    "doi",
+    "arxiv",
+    "bibliography",
+    "rename",
+]
+dependencies = ["pdfplumber>=0.9.0", "pypdf>=3.0.0", "requests>=2.28.0"]
+
+[project.optional-dependencies]
+llm = ["openai>=1.0.0"]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/maifeng/rename-academic-pdf"
+Repository = "https://github.com/maifeng/rename-academic-pdf"
+"Bug Tracker" = "https://github.com/maifeng/rename-academic-pdf/issues"
+
+[project.scripts]
+rename-academic-pdf = "rename_academic_pdf.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["rename_academic_pdf*"]
+
+[tool.setuptools.package-data]
+rename_academic_pdf = ["data/*.json"]
+
+[tool.black]
+line-length = 88
+target-version = ['py37']

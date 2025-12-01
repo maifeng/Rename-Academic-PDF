@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rename-academic-pdf"
-version = "1.1.0"
+version = "1.1.1"
 authors = [{ name = "Feng Mai", email = "maifeng@gmail.com" }]
 description = "Automatically rename academic PDFs using metadata from scholarly databases"
 readme = "README.md"

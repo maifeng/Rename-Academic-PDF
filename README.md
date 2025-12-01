@@ -5,7 +5,7 @@ Tired of PDFs with cryptic names like `hhaf081.pdf` or `1-s2.0-S0377221718308774
 **rename-academic-pdf** automatically renames your academic papers to clean, meaningful filenames:
 
 ```
-paper.pdf  →  SmithJones2024-Deep Learning for Climate Prediction-Nature.pdf
+paper.pdf  →  Author2024-PaperTitle-Journal.pdf
 ```
 
 ### Why use this tool?
@@ -21,7 +21,7 @@ paper.pdf  →  SmithJones2024-Deep Learning for Climate Prediction-Nature.pdf
 
 ```bash
 # Install
-pip install rename-academic-pdf
+pip install -U rename-academic-pdf
 
 # Rename a single PDF
 rename-academic-pdf paper.pdf
@@ -35,9 +35,9 @@ rename-academic-pdf paper.pdf --dry-run
 # Export BibTeX entries
 rename-academic-pdf *.pdf --bib-file references.bib
 
-# Generate markdown versions
-pip install "rename-academic-pdf[all]"
-rename-academic-pdf *.pdf --markdown-dir ./markdown/
+# Generate markdown versions alongwith BibTeX entries
+pip install -U "rename-academic-pdf[all]"
+rename-academic-pdf *.pdf --markdown-dir ./markdown/ --bib-file references.bib
 ```
 
 ## Installation
@@ -68,10 +68,10 @@ pip install -e .
 - **Intelligent identifier extraction**: DOI, arXiv ID, PMID from filename, PDF text, and metadata
 - **Multi-API cascade**: Queries 7+ academic databases with smart fallbacks
 - **BibTeX export**: Fetch or generate BibTeX entries with PDF/markdown paths
-- **Markdown conversion**: Convert PDFs to markdown using markitdown
-- **Journal abbreviations**: Built-in abbreviations for 100+ journals
+- **Markdown conversion**: Convert PDFs to markdown using [markitdown](https://github.com/microsoft/markitdown)
+- **Journal abbreviations**: Built-in abbreviations for 100+ journals and custom overrides
 - **Batch processing**: Rename multiple PDFs with wildcards (`*.pdf`, `**/*.pdf`)
-- **LLM fallback**: Use GPT models when APIs fail (optional)
+- **LLM fallback**: Use GPT models to extract metadatawhen APIs fail (optional)
 - **No API key required**: Most APIs are free (optional keys for better rate limits)
 
 ## Filename Formats

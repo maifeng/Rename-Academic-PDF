@@ -36,7 +36,7 @@ rename-academic-pdf paper.pdf --dry-run
 rename-academic-pdf *.pdf --bib-file references.bib
 
 # Generate markdown versions
-pip install rename-academic-pdf[all]
+pip install "rename-academic-pdf[all]"
 rename-academic-pdf *.pdf --markdown-dir ./markdown/
 ```
 
@@ -48,7 +48,7 @@ rename-academic-pdf *.pdf --markdown-dir ./markdown/
 pip install rename-academic-pdf
 
 # With optional features
-pip install rename-academic-pdf[all]  # LLM fallback + markdown conversion
+pip install "rename-academic-pdf[all]"  # LLM fallback + markdown conversion
 ```
 
 ### From source
@@ -151,7 +151,7 @@ rename-academic-pdf paper.pdf --bib-file ~/references.bib
 ```bash
 rename-academic-pdf paper.pdf --markdown-dir ~/markdown/
 # Converts PDFs to markdown using markitdown
-# Requires: pip install rename-academic-pdf[markdown]
+# Requires: pip install "rename-academic-pdf[markdown]"
 ```
 
 ## API Coverage
@@ -216,7 +216,7 @@ rename-academic-pdf *.pdf --llm --llm-model google/gemini-2.0-flash-001
 ```
 
 **Requirements:**
-- `pip install openai` (or `pip install -e '.[llm]'`)
+- `pip install openai` (or `pip install "rename-academic-pdf[llm]"`)
 - `OPENAI_API_KEY` for OpenAI models, or `OPENROUTER_API_KEY` for OpenRouter models set in environment variables.
 
 

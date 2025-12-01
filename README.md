@@ -2,11 +2,9 @@
 
 Tired of PDFs with cryptic names like `hhaf081.pdf` or `1-s2.0-S0377221718308774-main.pdf`?
 
-**rename-academic-pdf** automatically renames your academic papers to clean, meaningful filenames:
+**rename-academic-pdf** automatically renames your academic paper pdf files to meaningful filenames with title, author(s), year, and journal. It can also generate BibTeX files and convert PDFs to markdown in one command. For example:
 
-```
-paper.pdf  →  Author2024-PaperTitle-Journal.pdf
-```
+**`paper.pdf`  →  `Author2024-PaperTitle-Journal.pdf`**
 
 ### Why use this tool?
 
@@ -35,7 +33,7 @@ rename-academic-pdf paper.pdf --dry-run
 # Export BibTeX entries
 rename-academic-pdf *.pdf --bib-file references.bib
 
-# Generate markdown versions alongwith BibTeX entries
+# Generate markdown versions along with BibTeX entries
 pip install -U "rename-academic-pdf[all]"
 rename-academic-pdf *.pdf --markdown-dir ./markdown/ --bib-file references.bib
 ```

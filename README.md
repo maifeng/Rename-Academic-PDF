@@ -69,7 +69,7 @@ pip install -e .
 - **Multi-API cascade**: Queries 7+ academic databases with smart fallbacks
 - **BibTeX export**: Fetch or generate BibTeX entries with PDF/markdown paths
 - **Markdown conversion**: Convert PDFs to markdown using markitdown
-- **Journal abbreviations**: Built-in abbreviations for 100+ top journals (FT50, UTD24)
+- **Journal abbreviations**: Built-in abbreviations for 100+ journals
 - **Batch processing**: Rename multiple PDFs with wildcards (`*.pdf`, `**/*.pdf`)
 - **LLM fallback**: Use GPT models when APIs fail (optional)
 - **No API key required**: Most APIs are free (optional keys for better rate limits)

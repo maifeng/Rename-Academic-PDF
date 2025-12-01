@@ -128,13 +128,21 @@ rename-academic-pdf paper.pdf --max-title-length 120
 ```bash
 rename-academic-pdf paper.pdf --bib-file ~/papers.bib
 # Fetches BibTeX from DOI.org or arXiv, or generates from metadata
-# Each entry includes a comment with the PDF path
+# Each entry includes comments with PDF and markdown paths
 ```
 
 The BibTeX entries are fetched directly from authoritative sources when possible:
 - **DOI**: Uses DOI.org content negotiation (`application/x-bibtex`)
 - **arXiv**: Uses arXiv's BibTeX export endpoint
 - **Fallback**: Generates BibTeX from extracted metadata using pybtex
+
+**`--markdown-dir`**: Generate markdown versions of PDFs
+```bash
+rename-academic-pdf paper.pdf --markdown-dir ~/paper_markdown/
+# Converts PDFs to markdown using markitdown
+# Markdown files are saved with same name as renamed PDF
+# Requires: pip install rename-academic-pdf[markdown] or pip install rename-academic-pdf[all]
+```
 
 ## API Coverage
 
@@ -262,7 +270,8 @@ You can set default options by creating a config file at `~/.rename-academic-pdf
     "max_title_length": 100,
     "llm": true,
     "llm_model": "gpt-4o-mini",
-    "bib_file": "~/papers.bib"
+    "bib_file": "~/papers.bib",
+    "markdown_dir": "~/paper_markdown"
 }
 ```
 
@@ -278,6 +287,7 @@ You can set default options by creating a config file at `~/.rename-academic-pdf
 | `llm` | boolean | `false` | Enable LLM fallback |
 | `llm_model` | string | `"gpt-4.1-mini"` | LLM model for `--llm` mode |
 | `bib_file` | string | - | Path to BibTeX file to append entries to |
+| `markdown_dir` | string | - | Directory to save markdown versions of PDFs |
 
 Command-line arguments always override config file settings.
 

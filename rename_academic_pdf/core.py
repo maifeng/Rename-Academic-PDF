@@ -103,6 +103,7 @@ def load_config() -> Dict[str, any]:
     - llm_model: LLM model name (e.g., "gpt-4.1-mini")
     - max_title_length: Maximum title length in filename (default: 80)
     - bib_file: Path to BibTeX file to append entries to
+    - markdown_dir: Directory to save markdown versions of PDFs
 
     Example config.json:
     {
@@ -112,7 +113,8 @@ def load_config() -> Dict[str, any]:
         "llm": true,
         "llm_model": "gpt-4.1-mini",
         "max_title_length": 100,
-        "bib_file": "~/papers.bib"
+        "bib_file": "~/papers.bib",
+        "markdown_dir": "~/paper_markdown"
     }
 
     Returns:
@@ -1276,15 +1278,17 @@ def append_bibtex_to_file(
     bib_file: Path,
     pdf_path: Path,
     new_pdf_path: Optional[Path] = None,
+    markdown_path: Optional[Path] = None,
 ) -> bool:
     """
-    Append BibTeX entry to a .bib file with PDF path as comment.
+    Append BibTeX entry to a .bib file with PDF and markdown paths as comments.
 
     Args:
         bibtex: BibTeX entry string
         bib_file: Path to .bib file (created if doesn't exist)
         pdf_path: Original path to the PDF file
         new_pdf_path: New path after rename (if renamed)
+        markdown_path: Path to generated markdown file (optional)
 
     Returns:
         True if successful, False otherwise
@@ -1295,11 +1299,14 @@ def append_bibtex_to_file(
         # Create parent directories if needed
         bib_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # Build comment with PDF path
-        pdf_comment = f"% PDF: {new_pdf_path or pdf_path}"
+        # Build comments with file paths
+        comments = []
+        comments.append(f"% PDF: {new_pdf_path or pdf_path}")
+        if markdown_path:
+            comments.append(f"% Markdown: {markdown_path}")
         
-        # Format the entry with comment
-        entry_with_comment = f"\n{pdf_comment}\n{bibtex}\n"
+        # Format the entry with comments
+        entry_with_comment = "\n" + "\n".join(comments) + "\n" + bibtex + "\n"
         
         # Append to file
         with open(bib_file, "a", encoding="utf-8") as f:
@@ -1310,6 +1317,61 @@ def append_bibtex_to_file(
     except Exception as e:
         print(f"  ✗ Failed to write BibTeX to {bib_file}: {e}")
         return False
+
+
+def convert_pdf_to_markdown(
+    pdf_path: Path,
+    output_dir: Path,
+    output_filename: Optional[str] = None,
+) -> Optional[Path]:
+    """
+    Convert PDF to markdown using markitdown.
+
+    Args:
+        pdf_path: Path to the PDF file
+        output_dir: Directory to save the markdown file (flat structure)
+        output_filename: Optional custom filename (without extension).
+            If not provided, uses the PDF filename.
+
+    Returns:
+        Path to the generated markdown file, or None on failure
+    """
+    try:
+        from markitdown import MarkItDown
+    except ImportError:
+        print("  Warning: markitdown not installed. Install with: pip install markitdown")
+        print("  Or install all optional dependencies: pip install rename-academic-pdf[all]")
+        return None
+
+    try:
+        output_dir = Path(output_dir).expanduser()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Determine output filename
+        if output_filename:
+            md_filename = output_filename
+        else:
+            md_filename = pdf_path.stem
+        
+        # Ensure .md extension
+        if not md_filename.endswith(".md"):
+            md_filename += ".md"
+        
+        output_path = output_dir / md_filename
+        
+        # Convert using markitdown
+        md = MarkItDown()
+        result = md.convert(str(pdf_path))
+        
+        # Write to file
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(result.text_content)
+        
+        print(f"  ✓ Markdown generated: {output_path}")
+        return output_path
+    except Exception as e:
+        print(f"  ✗ Failed to convert PDF to markdown: {e}")
+        return None
 
 
 def extract_title_heuristic(pdf_path: Path) -> str:
@@ -1568,6 +1630,7 @@ def rename_pdf(
     llm_model: str = "gpt-4.1-mini",
     max_title_length: int = 80,
     bib_file: Optional[str] = None,
+    markdown_dir: Optional[str] = None,
 ) -> bool:
     """
     Rename PDF file based on metadata from API services.
@@ -1587,6 +1650,8 @@ def rename_pdf(
             Truncates at word boundary to avoid cutting mid-word.
         bib_file: Path to BibTeX file to append entries to (optional).
             Creates file if it doesn't exist.
+        markdown_dir: Directory to save markdown versions of PDFs (optional).
+            Uses markitdown to convert PDFs to markdown.
 
     Returns:
         True if successful, False otherwise.
@@ -1668,10 +1733,16 @@ def rename_pdf(
         else:
             print("  Warning: Could not obtain BibTeX entry")
 
+    # Determine markdown output filename (use new filename stem)
+    md_output_filename = new_filename.replace(".pdf", ".md") if new_filename else None
+
     if dry_run:
         print("\n[DRY RUN] Would rename:")
         print(f"  From: {pdf_path}")
         print(f"  To:   {new_path}")
+        if markdown_dir:
+            md_path = Path(markdown_dir).expanduser() / md_output_filename
+            print(f"  Would generate markdown: {md_path}")
         if bib_file and bibtex:
             print(f"  Would append BibTeX to: {bib_file}")
         return True
@@ -1681,9 +1752,17 @@ def rename_pdf(
         pdf_path.rename(new_path)
         print(f"\n✓ Successfully renamed!")
         
+        # Generate markdown if requested
+        markdown_path = None
+        if markdown_dir:
+            print(f"\nGenerating markdown...")
+            markdown_path = convert_pdf_to_markdown(
+                new_path, markdown_dir, md_output_filename
+            )
+        
         # Append BibTeX after successful rename
         if bib_file and bibtex:
-            append_bibtex_to_file(bibtex, bib_file, pdf_path, new_path)
+            append_bibtex_to_file(bibtex, bib_file, pdf_path, new_path, markdown_path)
         
         return True
     except Exception as e:
@@ -1707,6 +1786,9 @@ def main() -> None:
         )
         print(
             "  python rename_pdf.py paper.pdf --bib-file ~/papers.bib  # Export BibTeX"
+        )
+        print(
+            "  python rename_pdf.py paper.pdf --markdown-dir ~/md/  # Generate markdown"
         )
         print("\nAvailable format presets:")
         for name, template in FORMAT_TEMPLATES.items():
@@ -1821,6 +1903,16 @@ def main() -> None:
             print("Error: --bib-file requires a file path argument")
             sys.exit(1)
 
+    # Parse markdown_dir option (CLI overrides config)
+    markdown_dir = config.get("markdown_dir")  # default from config
+    if "--markdown-dir" in args:
+        idx = args.index("--markdown-dir")
+        if idx + 1 < len(args):
+            markdown_dir = args[idx + 1]
+        else:
+            print("Error: --markdown-dir requires a directory path argument")
+            sys.exit(1)
+
     # Load custom journal abbreviations if specified
     abbreviations = None
     if journal_abbrev_path:
@@ -1844,6 +1936,7 @@ def main() -> None:
             "--llm-model",
             "--max-title-length",
             "--bib-file",
+            "--markdown-dir",
         ]:
             skip_next = True
             continue
@@ -1858,7 +1951,11 @@ def main() -> None:
     if format_string:
         print(f"Using format: {format_string}\n")
     if bib_file:
-        print(f"BibTeX will be appended to: {bib_file}\n")
+        print(f"BibTeX will be appended to: {bib_file}")
+    if markdown_dir:
+        print(f"Markdown files will be saved to: {markdown_dir}")
+    if bib_file or markdown_dir:
+        print()
 
     # Process each PDF file
     results = []
@@ -1879,6 +1976,7 @@ def main() -> None:
             llm_model=llm_model,
             max_title_length=max_title_length,
             bib_file=bib_file,
+            markdown_dir=markdown_dir,
         )
         results.append(success)
 

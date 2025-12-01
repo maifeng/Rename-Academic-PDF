@@ -1,14 +1,21 @@
 # Rename Academic PDF Files
 
-Tired of PDFs of academic papers with names like `hhaf081.pdf` or `1-s2.0-S0377221718308774-main.pdf`? This tool automatically renames academic PDFs to meaningful filenames using metadata from scholarly databases. For example:
+Tired of PDFs with cryptic names like `hhaf081.pdf` or `1-s2.0-S0377221718308774-main.pdf`?
+
+**rename-academic-pdf** automatically renames your academic papers to clean, meaningful filenames:
 
 ```
-rename-academic-pdf hhaf081.pdf
-
-hhaf081.pdf → LiMaiShenYangZhang2025-Dissecting Corporate Culture Using Generative AI-RFS.pdf
+paper.pdf  →  SmithJones2024-Deep Learning for Climate Prediction-Nature.pdf
 ```
 
-The tool extracts DOIs, arXiv IDs, or paper titles from the PDF, queries multiple academic APIs (CrossRef, OpenAlex, Semantic Scholar, arXiv, PubMed, and more), and generates clean, consistent filenames with author names, publication year, title, and journal abbreviation.
+### Why use this tool?
+
+- 📄 **Smart renaming** — Extracts metadata from DOI, arXiv, or paper content
+- 📚 **BibTeX export** — Automatically build your bibliography file
+- 📝 **Markdown conversion** — Convert PDFs to markdown for AI/LLM workflows
+- 🔄 **Batch processing** — Rename hundreds of papers with one command
+- 🌐 **7+ academic APIs** — CrossRef, OpenAlex, Semantic Scholar, arXiv, PubMed, and more
+- ⚡ **No API key required** — Works out of the box
 
 ## Quick Start
 
@@ -19,12 +26,18 @@ pip install rename-academic-pdf
 # Rename a single PDF
 rename-academic-pdf paper.pdf
 
-# Batch rename
+# Batch rename all PDFs
 rename-academic-pdf *.pdf
-rename-academic-pdf **/*.pdf  # Nested directories
 
-# Preview without renaming
+# Preview changes without renaming
 rename-academic-pdf paper.pdf --dry-run
+
+# Export BibTeX entries
+rename-academic-pdf *.pdf --bib-file references.bib
+
+# Generate markdown versions
+pip install rename-academic-pdf[all]
+rename-academic-pdf *.pdf --markdown-dir ./markdown/
 ```
 
 ## Installation
@@ -33,6 +46,9 @@ rename-academic-pdf paper.pdf --dry-run
 
 ```bash
 pip install rename-academic-pdf
+
+# With optional features
+pip install rename-academic-pdf[all]  # LLM fallback + markdown conversion
 ```
 
 ### From source
@@ -49,22 +65,24 @@ pip install -e .
 
 ## Features
 
-- **Intelligent identifier extraction**: DOI, arXiv ID, PMID from file name, PDF text and metadata
+- **Intelligent identifier extraction**: DOI, arXiv ID, PMID from filename, PDF text, and metadata
 - **Multi-API cascade**: Queries 7+ academic databases with smart fallbacks
-- **Journal abbreviations**: Built-in abbreviations for 70+ top journals (FT50, UTD24)
+- **BibTeX export**: Fetch or generate BibTeX entries with PDF/markdown paths
+- **Markdown conversion**: Convert PDFs to markdown using markitdown
+- **Journal abbreviations**: Built-in abbreviations for 100+ top journals (FT50, UTD24)
 - **Batch processing**: Rename multiple PDFs with wildcards (`*.pdf`, `**/*.pdf`)
-- **No API key required**: Most APIs are free (optional Semantic Scholar key for better rate limits)
+- **LLM fallback**: Use GPT models when APIs fail (optional)
+- **No API key required**: Most APIs are free (optional keys for better rate limits)
 
 ## Filename Formats
 
 ### Default Behavior
 Default format: `AuthorsYear-Title-Journal.pdf`
-- **≤ 5 authors**: All authors concatenated (e.g., `DoeDeo2023`)
-- **> 5 authors**: First author + "EtAl" (e.g., `DoeEtAl2023`)
+- **≤ 5 authors**: All authors concatenated (e.g., `SmithJones2024-...`)
+- **> 5 authors**: First author + "EtAl" (e.g., `SmithEtAl2024-...`)
 
 You can override the default format string using command line options or in a config file (see [Configuration File](#configuration-file) section).
 
-    
 ### Format Presets
 
 | Preset          | Template                            | Example                               |
@@ -98,16 +116,16 @@ rename-academic-pdf paper.pdf --format-string '{author}-{title}'
 
 ### Additional Options
 
-**`--first-author-only`**: Use only first author (reverts to old behavior)
+**`--first-author-only`**: Use only first author
 ```bash
 rename-academic-pdf paper.pdf --first-author-only
-# Output: AuthorA2023-Title-Journal.pdf (instead of AuthorAAuthorBAuthorC2023...)
+# Output: Smith2024-Title-Journal.pdf (instead of SmithJonesBrown2024-...)
 ```
 
 **`--separator` (`-` or `_`)**: Change separator character
 ```bash
 rename-academic-pdf paper.pdf --separator _
-# Output: LiMaiShen2023_Title_Journal.pdf
+# Output: Smith2024_Title_Journal.pdf
 ```
 
 **`--journal-abbrev-file`**: Use custom journal abbreviations file
@@ -115,7 +133,6 @@ rename-academic-pdf paper.pdf --separator _
 rename-academic-pdf paper.pdf --journal-abbrev-file ~/my-journals.json
 # Uses custom abbreviations from the specified JSON file
 # Can be saved in ~/.rename-academic-pdf/journal_abbreviations.json for automatic loading
-# See format: https://github.com/maifeng/rename-academic-pdf/blob/main/journal_abbreviations.json
 ```
 
 **`--max-title-length`**: Maximum title length in filename (default: 80)
@@ -126,22 +143,15 @@ rename-academic-pdf paper.pdf --max-title-length 120
 
 **`--bib-file`**: Append BibTeX entries to a file
 ```bash
-rename-academic-pdf paper.pdf --bib-file ~/papers.bib
+rename-academic-pdf paper.pdf --bib-file ~/references.bib
 # Fetches BibTeX from DOI.org or arXiv, or generates from metadata
-# Each entry includes comments with PDF and markdown paths
 ```
-
-The BibTeX entries are fetched directly from authoritative sources when possible:
-- **DOI**: Uses DOI.org content negotiation (`application/x-bibtex`)
-- **arXiv**: Uses arXiv's BibTeX export endpoint
-- **Fallback**: Generates BibTeX from extracted metadata using pybtex
 
 **`--markdown-dir`**: Generate markdown versions of PDFs
 ```bash
-rename-academic-pdf paper.pdf --markdown-dir ~/paper_markdown/
+rename-academic-pdf paper.pdf --markdown-dir ~/markdown/
 # Converts PDFs to markdown using markitdown
-# Markdown files are saved with same name as renamed PDF
-# Requires: pip install rename-academic-pdf[markdown] or pip install rename-academic-pdf[all]
+# Requires: pip install rename-academic-pdf[markdown]
 ```
 
 ## API Coverage

@@ -40,11 +40,12 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from urllib.parse import quote
 
 import pdfplumber
 import requests
+from pybtex.database import BibliographyData, Entry
 from pypdf import PdfReader
 
 # API Configuration
@@ -101,6 +102,7 @@ def load_config() -> Dict[str, any]:
     - llm: Boolean, enable LLM fallback
     - llm_model: LLM model name (e.g., "gpt-4.1-mini")
     - max_title_length: Maximum title length in filename (default: 80)
+    - bib_file: Path to BibTeX file to append entries to
 
     Example config.json:
     {
@@ -109,7 +111,8 @@ def load_config() -> Dict[str, any]:
         "first_author_only": false,
         "llm": true,
         "llm_model": "gpt-4.1-mini",
-        "max_title_length": 100
+        "max_title_length": 100,
+        "bib_file": "~/papers.bib"
     }
 
     Returns:
@@ -1008,6 +1011,307 @@ def query_dblp(query_title: str) -> Optional[Dict[str, any]]:
     return None
 
 
+def format_bibtex_entry(bibtex: str) -> str:
+    """
+    Format a BibTeX entry with proper line breaks and indentation.
+    
+    Also fixes common encoding issues like garbled en-dash → --.
+    
+    Args:
+        bibtex: Raw BibTeX string (possibly on single line)
+    
+    Returns:
+        Nicely formatted BibTeX with each field on its own line
+    """
+    # Fix common encoding issues (UTF-8 mojibake patterns)
+    # These patterns occur when UTF-8 is misinterpreted
+    replacements = [
+        # Mojibake patterns (corrupted UTF-8)
+        ("\u00e2\u20ac\u201c", "--"),    # en-dash mojibake (â€")
+        ("\u00e2\u20ac\u201d", "---"),   # em-dash mojibake (â€")
+        ("\u00e2\u20ac\u2122", "'"),     # right single quote mojibake (â€™)
+        ("\u00e2\u20ac\u0153", '"'),     # left double quote mojibake (â€œ)
+        ("\u00e2\u20ac\u009d", '"'),     # right double quote mojibake
+        # Standard Latin-1 mojibake patterns
+        ("\u00e2\u0080\u0093", "--"),    # en-dash
+        ("\u00e2\u0080\u0094", "---"),   # em-dash
+        ("\u00e2\u0080\u0099", "'"),     # right single quote
+        ("\u00e2\u0080\u009c", '"'),     # left double quote
+        ("\u00e2\u0080\u009d", '"'),     # right double quote
+        # Proper Unicode characters
+        ("\u2013", "--"),                # en-dash
+        ("\u2014", "---"),               # em-dash
+        ("\u2019", "'"),                 # right single quote
+        ("\u201c", '"'),                 # left double quote
+        ("\u201d", '"'),                 # right double quote
+    ]
+    for old, new in replacements:
+        bibtex = bibtex.replace(old, new)
+    
+    # Check if already formatted (has newlines in field area)
+    if bibtex.count('\n') > 2:
+        return bibtex
+    
+    # Parse and reformat single-line BibTeX
+    # Match the entry type and key: @article{Key2023,
+    match = re.match(r'(@\w+\{[^,]+,)\s*(.+)\s*\}$', bibtex.strip(), re.DOTALL)
+    if not match:
+        return bibtex  # Can't parse, return as-is
+    
+    header = match.group(1)
+    fields_str = match.group(2)
+    
+    # Split fields - they are comma-separated, but values can contain commas in braces
+    fields = []
+    current_field = ""
+    brace_depth = 0
+    
+    for char in fields_str:
+        if char == '{':
+            brace_depth += 1
+            current_field += char
+        elif char == '}':
+            brace_depth -= 1
+            current_field += char
+        elif char == ',' and brace_depth == 0:
+            if current_field.strip():
+                fields.append(current_field.strip())
+            current_field = ""
+        else:
+            current_field += char
+    
+    if current_field.strip():
+        fields.append(current_field.strip())
+    
+    # Format with proper indentation
+    formatted_fields = []
+    for field in fields:
+        formatted_fields.append(f"  {field}")
+    
+    return header + "\n" + ",\n".join(formatted_fields) + "\n}"
+
+
+def fetch_bibtex_from_doi(doi: str) -> Optional[str]:
+    """
+    Fetch BibTeX directly from DOI.org using content negotiation.
+
+    Args:
+        doi: Digital Object Identifier
+
+    Returns:
+        BibTeX string or None if not available
+    """
+    try:
+        url = DOI_ORG_API.format(doi=quote(doi, safe=""))
+        headers = {
+            "Accept": "application/x-bibtex",
+            "User-Agent": "PDFRenamer/1.0",
+        }
+        response = requests.get(
+            url, headers=headers, timeout=REQUEST_TIMEOUT, allow_redirects=True
+        )
+        if response.status_code == 200:
+            return format_bibtex_entry(response.text.strip())
+    except Exception as e:
+        print(f"  Failed to fetch BibTeX from DOI.org: {e}")
+    return None
+
+
+def fetch_bibtex_from_arxiv(arxiv_id: str) -> Optional[str]:
+    """
+    Fetch BibTeX from arXiv export API.
+
+    Args:
+        arxiv_id: arXiv identifier (e.g., 2301.12345)
+
+    Returns:
+        BibTeX string or None if not available
+    """
+    try:
+        # arXiv provides BibTeX via export
+        url = f"https://arxiv.org/bibtex/{arxiv_id}"
+        headers = {"User-Agent": "PDFRenamer/1.0"}
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        if response.status_code == 200:
+            return format_bibtex_entry(response.text.strip())
+    except Exception as e:
+        print(f"  Failed to fetch BibTeX from arXiv: {e}")
+    return None
+
+
+def generate_bibtex_key(metadata: Dict[str, any]) -> str:
+    """
+    Generate a BibTeX citation key from metadata.
+
+    Format: FirstAuthorYear (e.g., "Smith2023")
+
+    Args:
+        metadata: Dictionary with authors, year, title
+
+    Returns:
+        BibTeX citation key
+    """
+    authors = metadata.get("authors", [])
+    year = metadata.get("year", "")
+    
+    first_author = ""
+    if authors:
+        # Clean author name for BibTeX key
+        first_author = re.sub(r"[^a-zA-Z]", "", authors[0])
+    
+    return f"{first_author}{year}" if first_author else f"unknown{year}"
+
+
+def generate_bibtex_from_metadata(metadata: Dict[str, any]) -> Optional[str]:
+    """
+    Generate BibTeX entry from metadata using pybtex.
+
+    Used as fallback when native BibTeX is not available from APIs
+    (e.g., for LLM-extracted metadata).
+
+    Args:
+        metadata: Dictionary with authors, year, title, venue, doi
+            May include authors_full for complete author names (from LLM)
+
+    Returns:
+        BibTeX string or None on failure
+    """
+    try:
+        # Build fields
+        fields = {}
+        
+        if metadata.get("title"):
+            fields["title"] = metadata["title"]
+        
+        if metadata.get("year"):
+            fields["year"] = str(metadata["year"])
+        
+        if metadata.get("venue"):
+            fields["journal"] = metadata["venue"]
+        
+        if metadata.get("doi"):
+            fields["doi"] = metadata["doi"]
+        
+        # Format authors for BibTeX
+        # Prefer full names (authors_full) if available (from LLM extraction)
+        authors_full = metadata.get("authors_full", [])
+        authors = metadata.get("authors", [])
+        
+        if authors_full:
+            # Use full names - convert "First Last" to "Last, First" for BibTeX
+            bibtex_authors = []
+            for author in authors_full:
+                if isinstance(author, str):
+                    if "," in author:
+                        # Already in "Last, First" format
+                        bibtex_authors.append(author)
+                    else:
+                        # Convert "First Last" to "Last, First"
+                        parts = author.strip().split()
+                        if len(parts) >= 2:
+                            bibtex_authors.append(f"{parts[-1]}, {' '.join(parts[:-1])}")
+                        elif parts:
+                            bibtex_authors.append(parts[0])
+            fields["author"] = " and ".join(bibtex_authors)
+        elif authors:
+            # Fallback to last names only
+            fields["author"] = " and ".join(authors)
+        
+        # Generate citation key
+        key = generate_bibtex_key(metadata)
+        
+        # Create BibTeX entry
+        entry = Entry("article", fields=fields)
+        data = BibliographyData({key: entry})
+        
+        return format_bibtex_entry(data.to_string("bibtex").strip())
+    except Exception as e:
+        print(f"  Warning: Failed to generate BibTeX: {e}")
+        return None
+
+
+def fetch_or_generate_bibtex(
+    metadata: Dict[str, any],
+    identifiers: Dict[str, str],
+) -> Tuple[Optional[str], str]:
+    """
+    Fetch BibTeX from APIs or generate from metadata.
+
+    Tries in order:
+    1. DOI → DOI.org BibTeX endpoint
+    2. arXiv → arXiv BibTeX endpoint
+    3. Generate from metadata using pybtex
+
+    Args:
+        metadata: Extracted metadata dictionary
+        identifiers: Dictionary of identifiers (doi, arxiv, etc.)
+
+    Returns:
+        Tuple of (bibtex_string, source) where source is "doi.org", "arxiv", or "generated"
+    """
+    # Try DOI first (most authoritative)
+    doi = identifiers.get("doi") or metadata.get("doi")
+    if doi:
+        bibtex = fetch_bibtex_from_doi(doi)
+        if bibtex:
+            return bibtex, "doi.org"
+    
+    # Try arXiv
+    arxiv_id = identifiers.get("arxiv")
+    if arxiv_id:
+        bibtex = fetch_bibtex_from_arxiv(arxiv_id)
+        if bibtex:
+            return bibtex, "arxiv"
+    
+    # Generate from metadata as fallback
+    bibtex = generate_bibtex_from_metadata(metadata)
+    if bibtex:
+        return bibtex, "generated"
+    
+    return None, ""
+
+
+def append_bibtex_to_file(
+    bibtex: str,
+    bib_file: Path,
+    pdf_path: Path,
+    new_pdf_path: Optional[Path] = None,
+) -> bool:
+    """
+    Append BibTeX entry to a .bib file with PDF path as comment.
+
+    Args:
+        bibtex: BibTeX entry string
+        bib_file: Path to .bib file (created if doesn't exist)
+        pdf_path: Original path to the PDF file
+        new_pdf_path: New path after rename (if renamed)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        bib_file = Path(bib_file).expanduser()
+        
+        # Create parent directories if needed
+        bib_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Build comment with PDF path
+        pdf_comment = f"% PDF: {new_pdf_path or pdf_path}"
+        
+        # Format the entry with comment
+        entry_with_comment = f"\n{pdf_comment}\n{bibtex}\n"
+        
+        # Append to file
+        with open(bib_file, "a", encoding="utf-8") as f:
+            f.write(entry_with_comment)
+        
+        print(f"  ✓ BibTeX appended to {bib_file}")
+        return True
+    except Exception as e:
+        print(f"  ✗ Failed to write BibTeX to {bib_file}: {e}")
+        return False
+
+
 def extract_title_heuristic(pdf_path: Path) -> str:
     """
     Extract likely title from PDF using heuristics (fallback method).
@@ -1036,7 +1340,9 @@ def extract_title_heuristic(pdf_path: Path) -> str:
     return ""
 
 
-def extract_metadata_cascade(pdf_path: Path) -> Optional[Dict[str, any]]:
+def extract_metadata_cascade(
+    pdf_path: Path, return_identifiers: bool = False
+) -> Tuple[Optional[Dict[str, any]], Dict[str, str]] | Optional[Dict[str, any]]:
     """
     Extract metadata using cascade of API services (Zotero-inspired).
 
@@ -1059,9 +1365,11 @@ def extract_metadata_cascade(pdf_path: Path) -> Optional[Dict[str, any]]:
 
     Args:
         pdf_path: Path to PDF file
+        return_identifiers: If True, also return identifiers dict
 
     Returns:
-        Metadata dictionary with authors, year, title, venue, source
+        If return_identifiers is False: Metadata dictionary or None
+        If return_identifiers is True: Tuple of (metadata, identifiers)
     """
     print("  Extracting identifiers from PDF...")
     identifiers = extract_identifiers(pdf_path)
@@ -1148,6 +1456,8 @@ def extract_metadata_cascade(pdf_path: Path) -> Optional[Dict[str, any]]:
     else:
         print("  ✗ Could not retrieve metadata from any source")
 
+    if return_identifiers:
+        return metadata, identifiers
     return metadata
 
 
@@ -1257,6 +1567,7 @@ def rename_pdf(
     use_llm: bool = False,
     llm_model: str = "gpt-4.1-mini",
     max_title_length: int = 80,
+    bib_file: Optional[str] = None,
 ) -> bool:
     """
     Rename PDF file based on metadata from API services.
@@ -1274,7 +1585,8 @@ def rename_pdf(
         llm_model: LLM model to use for LLM extraction (default: gpt-4.1-mini).
         max_title_length: Maximum length for title in filename (default: 80).
             Truncates at word boundary to avoid cutting mid-word.
-        llm_model: OpenAI model to use for LLM extraction (default: gpt-4.1-mini).
+        bib_file: Path to BibTeX file to append entries to (optional).
+            Creates file if it doesn't exist.
 
     Returns:
         True if successful, False otherwise.
@@ -1293,7 +1605,8 @@ def rename_pdf(
     print("=" * 70)
 
     # Extract metadata using cascade approach, with optional LLM fallback
-    metadata = extract_metadata_cascade(pdf_path)
+    # Also get identifiers for BibTeX fetching
+    metadata, identifiers = extract_metadata_cascade(pdf_path, return_identifiers=True)
 
     # If API cascade failed and LLM is enabled, try LLM as last resort
     if not metadata and use_llm:
@@ -1344,16 +1657,34 @@ def rename_pdf(
 
     print(f"\nNew filename: {new_filename}")
 
+    # Handle BibTeX export
+    bibtex = None
+    if bib_file:
+        print(f"\nFetching BibTeX...")
+        bibtex, bib_source = fetch_or_generate_bibtex(metadata, identifiers)
+        if bibtex:
+            print(f"  BibTeX obtained from: {bib_source}")
+            # Will append after rename with new path
+        else:
+            print("  Warning: Could not obtain BibTeX entry")
+
     if dry_run:
         print("\n[DRY RUN] Would rename:")
         print(f"  From: {pdf_path}")
         print(f"  To:   {new_path}")
+        if bib_file and bibtex:
+            print(f"  Would append BibTeX to: {bib_file}")
         return True
 
     # Perform rename
     try:
         pdf_path.rename(new_path)
         print(f"\n✓ Successfully renamed!")
+        
+        # Append BibTeX after successful rename
+        if bib_file and bibtex:
+            append_bibtex_to_file(bibtex, bib_file, pdf_path, new_path)
+        
         return True
     except Exception as e:
         print(f"\n✗ Error renaming file: {e}")
@@ -1373,6 +1704,9 @@ def main() -> None:
         )
         print(
             "  python rename_pdf.py paper.pdf --llm  # Use LLM (requires OPENAI_API_KEY)"
+        )
+        print(
+            "  python rename_pdf.py paper.pdf --bib-file ~/papers.bib  # Export BibTeX"
         )
         print("\nAvailable format presets:")
         for name, template in FORMAT_TEMPLATES.items():
@@ -1477,6 +1811,16 @@ def main() -> None:
             print("Error: --max-title-length requires a number argument")
             sys.exit(1)
 
+    # Parse bib_file option (CLI overrides config)
+    bib_file = config.get("bib_file")  # default from config
+    if "--bib-file" in args:
+        idx = args.index("--bib-file")
+        if idx + 1 < len(args):
+            bib_file = args[idx + 1]
+        else:
+            print("Error: --bib-file requires a file path argument")
+            sys.exit(1)
+
     # Load custom journal abbreviations if specified
     abbreviations = None
     if journal_abbrev_path:
@@ -1499,6 +1843,7 @@ def main() -> None:
             "--journal-abbrev-file",
             "--llm-model",
             "--max-title-length",
+            "--bib-file",
         ]:
             skip_next = True
             continue
@@ -1512,6 +1857,8 @@ def main() -> None:
     # Show format being used
     if format_string:
         print(f"Using format: {format_string}\n")
+    if bib_file:
+        print(f"BibTeX will be appended to: {bib_file}\n")
 
     # Process each PDF file
     results = []
@@ -1531,6 +1878,7 @@ def main() -> None:
             use_llm=use_llm,
             llm_model=llm_model,
             max_title_length=max_title_length,
+            bib_file=bib_file,
         )
         results.append(success)
 

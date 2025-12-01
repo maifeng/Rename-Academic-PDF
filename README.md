@@ -124,6 +124,18 @@ rename-academic-pdf paper.pdf --max-title-length 120
 # Longer titles allowed (truncates at word boundary, never mid-word)
 ```
 
+**`--bib-file`**: Append BibTeX entries to a file
+```bash
+rename-academic-pdf paper.pdf --bib-file ~/papers.bib
+# Fetches BibTeX from DOI.org or arXiv, or generates from metadata
+# Each entry includes a comment with the PDF path
+```
+
+The BibTeX entries are fetched directly from authoritative sources when possible:
+- **DOI**: Uses DOI.org content negotiation (`application/x-bibtex`)
+- **arXiv**: Uses arXiv's BibTeX export endpoint
+- **Fallback**: Generates BibTeX from extracted metadata using pybtex
+
 ## API Coverage
 
 The script tries multiple APIs in cascade order:
@@ -249,7 +261,8 @@ You can set default options by creating a config file at `~/.rename-academic-pdf
     "first_author_only": true,
     "max_title_length": 100,
     "llm": true,
-    "llm_model": "gpt-4o-mini"
+    "llm_model": "gpt-4o-mini",
+    "bib_file": "~/papers.bib"
 }
 ```
 
@@ -264,6 +277,7 @@ You can set default options by creating a config file at `~/.rename-academic-pdf
 | `max_title_length` | integer | `80` | Maximum title length in filename (truncates at word boundary) |
 | `llm` | boolean | `false` | Enable LLM fallback |
 | `llm_model` | string | `"gpt-4.1-mini"` | LLM model for `--llm` mode |
+| `bib_file` | string | - | Path to BibTeX file to append entries to |
 
 Command-line arguments always override config file settings.
 

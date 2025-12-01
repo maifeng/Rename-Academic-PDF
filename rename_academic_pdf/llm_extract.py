@@ -181,10 +181,13 @@ Rules:
             "doi": metadata.get("doi"),
         }
 
-        # Handle authors
+        # Handle authors - keep full names for BibTeX, extract last names for filename
         authors = metadata.get("authors", [])
         if authors:
-            # Extract last names for the authors field
+            # Store full names for BibTeX
+            result["authors_full"] = authors
+            
+            # Extract last names for the filename
             last_names = []
             for author in authors:
                 if isinstance(author, str):

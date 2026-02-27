@@ -261,6 +261,24 @@ def abbreviate_journal(
         # If full name found in our dict, use that abbreviation
         # Otherwise, the API's short title is probably good, keep it
 
+    # Substring matching: check if any abbreviation key appears within the venue
+    # This handles conference proceedings with varying year/edition prefixes,
+    # e.g., "Proceedings of the 24th ACM SIGKDD ..." matching "ACM SIGKDD"
+    for full_name, abbrev in abbrev_dict.items():
+        full_name_normalized = normalize_venue_name(full_name)
+        if len(full_name_normalized) >= 8 and full_name_normalized in venue_normalized:
+            return abbrev
+
+    # Also try substring matching with venue_full
+    if venue_full:
+        for full_name, abbrev in abbrev_dict.items():
+            full_name_normalized = normalize_venue_name(full_name)
+            if (
+                len(full_name_normalized) >= 8
+                and full_name_normalized in venue_full_normalized
+            ):
+                return abbrev
+
     # If venue is already short (<=6 chars and all caps), keep it
     if len(venue_clean) <= 6 and venue_clean.isupper():
         return venue_clean
@@ -292,6 +310,25 @@ def abbreviate_journal(
 
     # Otherwise, return first 20 chars of original
     return venue_clean[:20]
+
+
+def normalize_author_name(name: str) -> str:
+    """Normalize author name capitalization.
+
+    Converts ALL CAPS or all lowercase to title case.
+    Preserves already mixed-case names (e.g., "McDonald", "van der Berg").
+
+    Args:
+        name: Author last name string.
+
+    Returns:
+        Name with normalized capitalization.
+    """
+    if not name:
+        return name
+    if name.isupper() or name.islower():
+        return name.title()
+    return name
 
 
 def clean_filename(
@@ -445,6 +482,15 @@ def extract_identifiers(pdf_path: Path) -> Dict[str, str]:
                             normalized_type
                         ].strip(".,;")
                     break  # Found it, no need to search reversed
+
+    # Filter out placeholder/template DOIs (e.g., "10.1145/nnnnnnn.nnnnnnn")
+    if "doi" in identifiers:
+        doi_val = identifiers["doi"]
+        # Check if suffix after registrant is all repeated chars (placeholder)
+        suffix = doi_val.split("/", 1)[-1] if "/" in doi_val else ""
+        chars = set(suffix.replace(".", ""))
+        if len(chars) == 1:
+            identifiers.pop("doi")
 
     return identifiers
 
@@ -1559,7 +1605,7 @@ def format_filename_from_metadata(
         format_string = FORMAT_TEMPLATES["default"]
 
     # Extract and clean components
-    authors = metadata.get("authors", [])
+    authors = [normalize_author_name(a) for a in metadata.get("authors", [])]
 
     # Handle author names based on preferences
     if first_author_only:

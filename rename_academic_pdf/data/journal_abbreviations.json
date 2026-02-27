@@ -100,6 +100,70 @@
         "JAMA": "JAMA",
         "Cell": "Cell",
         "Nature Medicine": "Nat Med",
-        "Nature Biotechnology": "Nat Biotechnol"
+        "Nature Biotechnology": "Nat Biotechnol",
+
+        "ACM SIGKDD": "KDD",
+        "Knowledge Discovery & Data Mining": "KDD",
+        "Knowledge Discovery and Data Mining": "KDD",
+
+        "IEEE/CVF Conference on Computer Vision and Pattern Recognition": "CVPR",
+        "IEEE Conference on Computer Vision and Pattern Recognition": "CVPR",
+        "Computer Vision and Pattern Recognition": "CVPR",
+
+        "IEEE/CVF International Conference on Computer Vision": "ICCV",
+        "IEEE International Conference on Computer Vision": "ICCV",
+
+        "European Conference on Computer Vision": "ECCV",
+
+        "Conference on Neural Information Processing Systems": "NeurIPS",
+        "Neural Information Processing Systems": "NeurIPS",
+        "Advances in Neural Information Processing Systems": "NeurIPS",
+
+        "International Conference on Machine Learning": "ICML",
+        "International Conference on Learning Representations": "ICLR",
+
+        "Association for Computational Linguistics": "ACL",
+        "Empirical Methods in Natural Language Processing": "EMNLP",
+        "North American Chapter of the Association for Computational Linguistics": "NAACL",
+
+        "AAAI Conference on Artificial Intelligence": "AAAI",
+        "International Joint Conference on Artificial Intelligence": "IJCAI",
+
+        "The Web Conference": "WWW",
+        "World Wide Web": "WWW",
+        "International World Wide Web Conference": "WWW",
+
+        "ACM SIGIR": "SIGIR",
+        "Research and Development in Information Retrieval": "SIGIR",
+
+        "ACM International Conference on Information and Knowledge Management": "CIKM",
+        "Information and Knowledge Management": "CIKM",
+
+        "ACM CHI Conference on Human Factors in Computing Systems": "CHI",
+        "Human Factors in Computing Systems": "CHI",
+
+        "ACM Symposium on User Interface Software and Technology": "UIST",
+
+        "International Conference on Software Engineering": "ICSE",
+        "Foundations of Software Engineering": "FSE",
+
+        "ACM SIGMOD": "SIGMOD",
+        "Management of Data": "SIGMOD",
+
+        "Very Large Data Bases": "VLDB",
+        "VLDB Endowment": "VLDB",
+
+        "International Conference on Data Engineering": "ICDE",
+
+        "European Journal of Operational Research": "EJOR",
+        "Journal of the European Economic Association": "JEEA",
+
+        "ACM Conference on Economics and Computation": "EC",
+        "ACM Conference on Computer-Supported Cooperative Work": "CSCW",
+        "ACM Conference on Fairness, Accountability, and Transparency": "FAccT",
+
+        "International Conference on Autonomous Agents and Multiagent Systems": "AAMAS",
+        "Robotics: Science and Systems": "RSS",
+        "International Conference on Robotics and Automation": "ICRA"
     }
 }

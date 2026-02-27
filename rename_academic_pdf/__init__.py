@@ -7,7 +7,7 @@ to extract accurate paper metadata and generate standardized filenames.
 Author: Feng Mai <maifeng@gmail.com>
 """
 
-__version__ = "1.0.0"
+__version__ = "1.2.0"
 __author__ = "Feng Mai"
 __email__ = "maifeng@gmail.com"
 

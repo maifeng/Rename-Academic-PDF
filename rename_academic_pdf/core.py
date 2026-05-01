@@ -1795,7 +1795,7 @@ def rename_pdf(
 
     # Perform rename
     try:
-        pdf_path.rename(new_path)
+        os.rename(str(pdf_path), str(new_path))
         print(f"\n✓ Successfully renamed!")
         
         # Generate markdown if requested

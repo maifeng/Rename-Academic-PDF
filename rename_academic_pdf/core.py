@@ -1665,6 +1665,32 @@ def format_filename_from_metadata(
         return None
 
 
+def resolve_output_path(path_str: str, pdf_path: Path) -> Path:
+    """
+    Work out where a BibTeX file or markdown folder should actually go.
+
+    An absolute path (or one starting with ~) is taken as given. A relative
+    path like "./markdown/" is resolved against the folder the PDF lives in,
+    rather than against the current working directory.
+
+    This matters because the working directory is not always what the user
+    imagines. When the tool is launched from a Finder Quick Action the working
+    directory is the user's home folder, so "./markdown/" would quietly write
+    into ~/markdown instead of next to the paper being renamed.
+
+    Args:
+        path_str: The path as given in the config file or on the command line.
+        pdf_path: Path to the PDF being renamed.
+
+    Returns:
+        An absolute path to the BibTeX file or markdown folder.
+    """
+    path = Path(path_str).expanduser()
+    if path.is_absolute():
+        return path
+    return (pdf_path.parent / path).resolve()
+
+
 def rename_pdf(
     pdf_path: Path,
     dry_run: bool = False,
@@ -1677,6 +1703,7 @@ def rename_pdf(
     max_title_length: int = 80,
     bib_file: Optional[str] = None,
     markdown_dir: Optional[str] = None,
+    on_existing: str = "ask",
 ) -> bool:
     """
     Rename PDF file based on metadata from API services.
@@ -1698,6 +1725,10 @@ def rename_pdf(
             Creates file if it doesn't exist.
         markdown_dir: Directory to save markdown versions of PDFs (optional).
             Uses markitdown to convert PDFs to markdown.
+        on_existing: What to do when the target filename is already taken:
+            "ask" (prompt, the default), "skip", or "force" (overwrite).
+            "ask" falls back to "skip" when there is no interactive stdin,
+            so GUI and scripted callers never hang or crash.
 
     Returns:
         True if successful, False otherwise.
@@ -1761,10 +1792,23 @@ def rename_pdf(
     # Check if file already exists
     if new_path.exists() and new_path != pdf_path:
         print(f"\n⚠ Warning: File '{new_filename}' already exists")
-        response = input("Overwrite? (y/n): ")
-        if response.lower() != "y":
-            print("Rename cancelled")
+        if on_existing == "force":
+            print("  Overwriting (--force)")
+        elif on_existing == "skip":
+            print("  Skipping (--skip-existing)")
             return False
+        else:
+            try:
+                response = input("Overwrite? (y/n): ")
+            except EOFError:
+                # No interactive stdin: a Finder Quick Action, a cron job, a
+                # pipe. Skip rather than crash, and never clobber by default.
+                print("\n  No input available; skipping.")
+                print("  Use --force to overwrite or --skip-existing to silence this.")
+                return False
+            if response.lower() != "y":
+                print("Rename cancelled")
+                return False
 
     print(f"\nNew filename: {new_filename}")
 
@@ -1782,34 +1826,37 @@ def rename_pdf(
     # Determine markdown output filename (use new filename stem)
     md_output_filename = new_filename.replace(".pdf", ".md") if new_filename else None
 
+    # Relative output paths are relative to the PDF, not the working directory.
+    bib_path = resolve_output_path(bib_file, pdf_path) if bib_file else None
+    md_dir = resolve_output_path(markdown_dir, pdf_path) if markdown_dir else None
+
     if dry_run:
         print("\n[DRY RUN] Would rename:")
         print(f"  From: {pdf_path}")
         print(f"  To:   {new_path}")
-        if markdown_dir:
-            md_path = Path(markdown_dir).expanduser() / md_output_filename
-            print(f"  Would generate markdown: {md_path}")
-        if bib_file and bibtex:
-            print(f"  Would append BibTeX to: {bib_file}")
+        if md_dir:
+            print(f"  Would generate markdown: {md_dir / md_output_filename}")
+        if bib_path and bibtex:
+            print(f"  Would append BibTeX to: {bib_path}")
         return True
 
     # Perform rename
     try:
         os.rename(str(pdf_path), str(new_path))
         print(f"\n✓ Successfully renamed!")
-        
+
         # Generate markdown if requested
         markdown_path = None
-        if markdown_dir:
+        if md_dir:
             print(f"\nGenerating markdown...")
             markdown_path = convert_pdf_to_markdown(
-                new_path, markdown_dir, md_output_filename
+                new_path, str(md_dir), md_output_filename
             )
-        
+
         # Append BibTeX after successful rename
-        if bib_file and bibtex:
-            append_bibtex_to_file(bibtex, bib_file, pdf_path, new_path, markdown_path)
-        
+        if bib_path and bibtex:
+            append_bibtex_to_file(bibtex, bib_path, pdf_path, new_path, markdown_path)
+
         return True
     except Exception as e:
         print(f"\n✗ Error renaming file: {e}")
@@ -1836,6 +1883,13 @@ def main() -> None:
         print(
             "  python rename_pdf.py paper.pdf --markdown-dir ~/md/  # Generate markdown"
         )
+        print(
+            "  python rename_pdf.py paper.pdf --no-bib --no-markdown  # Rename only"
+        )
+        print(
+            "  python rename_pdf.py *.pdf --skip-existing  # Skip name clashes, don't ask"
+        )
+        print("  python rename_pdf.py *.pdf --force  # Overwrite on name clash")
         print("\nAvailable format presets:")
         for name, template in FORMAT_TEMPLATES.items():
             print(f"  {name:15s} {template}")
@@ -1948,6 +2002,9 @@ def main() -> None:
         else:
             print("Error: --bib-file requires a file path argument")
             sys.exit(1)
+    # --no-bib turns off a bib_file set in the config file, for a single run.
+    if "--no-bib" in args:
+        bib_file = None
 
     # Parse markdown_dir option (CLI overrides config)
     markdown_dir = config.get("markdown_dir")  # default from config
@@ -1958,6 +2015,20 @@ def main() -> None:
         else:
             print("Error: --markdown-dir requires a directory path argument")
             sys.exit(1)
+    # --no-markdown turns off a markdown_dir set in the config file.
+    if "--no-markdown" in args:
+        markdown_dir = None
+
+    # Decide what to do when the target filename is already taken.
+    if "--force" in args and "--skip-existing" in args:
+        print("Error: --force and --skip-existing cannot be used together")
+        sys.exit(1)
+    if "--force" in args:
+        on_existing = "force"
+    elif "--skip-existing" in args:
+        on_existing = "skip"
+    else:
+        on_existing = "ask"
 
     # Load custom journal abbreviations if specified
     abbreviations = None
@@ -2023,6 +2094,7 @@ def main() -> None:
             max_title_length=max_title_length,
             bib_file=bib_file,
             markdown_dir=markdown_dir,
+            on_existing=on_existing,
         )
         results.append(success)
 

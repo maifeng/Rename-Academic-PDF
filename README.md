@@ -61,6 +61,24 @@ pip install -e .
 
 ---
 
+## Use Without a Terminal
+
+You can wire the tool into your file manager and rename papers by right-clicking
+them, which is how most people actually want to use it day to day.
+
+- **macOS**: [Set up a Finder Quick Action](contrib/macos/README.md). Select some
+  PDFs, right-click, choose **Quick Actions → Rename Academic PDF**. Takes about
+  two minutes in Automator, and the setup guide covers the permission prompt that
+  macOS shows on first run.
+- **Windows**: not written yet. A "Send To" shortcut or a right-click context menu
+  entry would work the same way. Contributions welcome.
+
+If you are scripting the tool, or calling it from anything without a terminal
+attached, use `--skip-existing` or `--force` so it never stops to ask a question
+that nobody is there to answer.
+
+---
+
 ## Features
 
 - **Intelligent identifier extraction**: DOI, arXiv ID, PMID from filename, PDF text, and metadata
@@ -152,6 +170,26 @@ rename-academic-pdf paper.pdf --markdown-dir ~/markdown/
 # Requires: pip install "rename-academic-pdf[markdown]"
 ```
 
+A relative path here is resolved against the folder the PDF is in, not against
+your current working directory. `--markdown-dir ./markdown/` therefore puts the
+markdown next to the paper, wherever the paper happens to live.
+
+**`--no-bib`** / **`--no-markdown`**: Turn off BibTeX or markdown for one run
+```bash
+rename-academic-pdf paper.pdf --no-bib --no-markdown
+# Rename only. Useful when your config file sets bib_file or markdown_dir
+# but you don't want them this time.
+```
+
+**`--skip-existing`** / **`--force`**: What to do when the target name is taken
+```bash
+rename-academic-pdf *.pdf --skip-existing   # leave both files alone, move on
+rename-academic-pdf *.pdf --force           # overwrite the existing file
+```
+By default the tool asks. If there is no terminal attached, as with a Finder
+Quick Action or a cron job, it skips rather than hanging or crashing. Pass one
+of these flags to make the choice explicit.
+
 ## API Coverage
 
 The script tries multiple APIs in cascade order:
@@ -190,6 +228,13 @@ export OPENROUTER_API_KEY="your-api-key-here"  # For --llm flag (OpenRouter)
 ```
 
 Get a free Semantic Scholar API key: https://www.semanticscholar.org/product/api
+
+> **If you use a Finder Quick Action, put these in `~/.zshenv`, not `~/.zshrc`.**
+> A Quick Action runs a non-interactive shell, and zsh only reads `~/.zshrc` for
+> interactive shells. Keys exported in `~/.zshrc` are invisible to it, so the LLM
+> fallback fails with "OPENAI_API_KEY environment variable is required" even
+> though the same command works fine in your Terminal. `~/.zshenv` is read by
+> every zsh, so both see it.
 
 ## LLM-Based Extraction (Experimental)
 
@@ -298,6 +343,12 @@ You can set default options by creating a config file at `~/.rename-academic-pdf
 | `markdown_dir` | string | - | Directory to save markdown versions of PDFs |
 
 Command-line arguments always override config file settings.
+
+`bib_file` and `markdown_dir` are off unless you set them. Once they are in your
+config file they apply to **every** run, including runs started from a Finder
+Quick Action. If you only want them occasionally, leave them out of the config
+and pass `--bib-file` / `--markdown-dir` when you want them. To keep them in the
+config but skip them for one run, use `--no-bib` / `--no-markdown`.
 
 ## License
 
